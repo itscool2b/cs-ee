@@ -124,7 +124,7 @@ def plot_boxplots(df, results_dir: str = "results"):
     print("Saved fig2_boxplots.png")
 
 
-def plot_best_tours(df, conv, results_dir: str = "results"):
+def plot_best_tours(df, conv, results_dir: str = "results", base_dir: str = "."):
     """Figure 3: Best tours (4x2 grid) showing city coordinates + tour edges."""
     from tsp import parse_tsplib
 
@@ -134,7 +134,7 @@ def plot_best_tours(df, conv, results_dir: str = "results"):
     n_trials = df.groupby(["instance", "algorithm"]).size().iloc[0]
 
     for row, (inst_name, inst_config) in enumerate(INSTANCES.items()):
-        instance = parse_tsplib(inst_config["file"], inst_config["optimal"])
+        instance = parse_tsplib(os.path.join(base_dir, inst_config["file"]), inst_config["optimal"])
 
         for col, alg_name in enumerate(["GA", "SA"]):
             ax = axes[row][col]
@@ -341,8 +341,128 @@ def statistical_analysis(df, results_dir: str = "results"):
     return stats_df
 
 
+def _fe_to_threshold(fe_array, cost_array, optimal, gap_pct):
+    """Find the first FE count where cost is within gap_pct% of optimal.
+
+    Returns max FE if threshold is never reached.
+    """
+    target = optimal * (1 + gap_pct / 100.0)
+    indices = np.where(cost_array <= target)[0]
+    if len(indices) > 0:
+        return int(fe_array[indices[0]])
+    return int(fe_array[-1])  # never reached — use budget as upper bound
+
+
+def convergence_efficiency(df, conv, results_dir: str = "results"):
+    """Compute and plot FEs-to-threshold for convergence efficiency comparison.
+
+    Measures how many FEs each algorithm needs to reach within X% of optimal.
+    """
+    n_trials = df.groupby(["instance", "algorithm"]).size().iloc[0]
+    thresholds = [15, 10, 5]  # % gap from optimal
+
+    # Compute FEs-to-threshold for every trial
+    eff_rows = []
+    for inst_name, inst_config in INSTANCES.items():
+        optimal = inst_config["optimal"]
+        for alg_name in ALGORITHMS:
+            fe_arrays, cost_arrays = _get_convergence_arrays(conv, inst_name, alg_name, n_trials)
+            for i, (fe, cost) in enumerate(zip(fe_arrays, cost_arrays)):
+                for thresh in thresholds:
+                    fe_val = _fe_to_threshold(fe, cost, optimal, thresh)
+                    eff_rows.append({
+                        "instance": inst_name,
+                        "algorithm": alg_name,
+                        "seed": i,
+                        "threshold_pct": thresh,
+                        "fe_to_threshold": fe_val,
+                    })
+
+    eff_df = pd.DataFrame(eff_rows)
+    eff_df.to_csv(os.path.join(results_dir, "convergence_efficiency.csv"), index=False)
+
+    # Figure 6: Box plots of FEs-to-threshold (one subplot per threshold)
+    fig, axes = plt.subplots(1, len(thresholds), figsize=(6 * len(thresholds), 7))
+    fig.suptitle("Convergence Efficiency: FEs to Reach X% Gap from Optimal",
+                 fontsize=14, fontweight="bold")
+
+    from matplotlib.patches import Patch
+
+    for t_idx, thresh in enumerate(thresholds):
+        ax = axes[t_idx]
+        thresh_df = eff_df[eff_df["threshold_pct"] == thresh]
+
+        instances = list(INSTANCES.keys())
+        x = np.arange(len(instances))
+        width = 0.35
+
+        ga_data = []
+        sa_data = []
+        for inst_name in instances:
+            ga_vals = thresh_df[(thresh_df["instance"] == inst_name) &
+                                (thresh_df["algorithm"] == "GA")]["fe_to_threshold"].values
+            sa_vals = thresh_df[(thresh_df["instance"] == inst_name) &
+                                (thresh_df["algorithm"] == "SA")]["fe_to_threshold"].values
+            ga_data.append(ga_vals)
+            sa_data.append(sa_vals)
+
+        bp_ga = ax.boxplot([d for d in ga_data], positions=x - width / 2,
+                           widths=width * 0.8, patch_artist=True)
+        bp_sa = ax.boxplot([d for d in sa_data], positions=x + width / 2,
+                           widths=width * 0.8, patch_artist=True)
+
+        for box in bp_ga["boxes"]:
+            box.set_facecolor("#BBDEFB")
+        for box in bp_sa["boxes"]:
+            box.set_facecolor("#FFCCBC")
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(instances, fontsize=9)
+        ax.set_ylabel("Function Evaluations")
+        ax.set_title(f"FEs to reach {thresh}% gap")
+        ax.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
+        ax.grid(True, alpha=0.3, axis="y")
+
+        ax.legend(handles=[Patch(facecolor="#BBDEFB", label="GA"),
+                           Patch(facecolor="#FFCCBC", label="SA")], fontsize=9)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, "fig6_convergence_efficiency.png"),
+                dpi=300, bbox_inches="tight")
+    plt.close()
+    print("Saved fig6_convergence_efficiency.png")
+
+    # Statistical tests on convergence efficiency
+    print(f"\n{'='*80}")
+    print("CONVERGENCE EFFICIENCY ANALYSIS")
+    print(f"{'='*80}")
+
+    for thresh in thresholds:
+        print(f"\n--- Threshold: {thresh}% gap from optimal ---")
+        for inst_name in INSTANCES:
+            thresh_df = eff_df[(eff_df["threshold_pct"] == thresh) &
+                               (eff_df["instance"] == inst_name)]
+            ga_fe = thresh_df[thresh_df["algorithm"] == "GA"]["fe_to_threshold"].values
+            sa_fe = thresh_df[thresh_df["algorithm"] == "SA"]["fe_to_threshold"].values
+
+            ga_mean = np.mean(ga_fe)
+            sa_mean = np.mean(sa_fe)
+
+            if len(ga_fe) >= 2 and len(sa_fe) >= 2:
+                u_stat, u_p = stats.mannwhitneyu(ga_fe, sa_fe, alternative="two-sided")
+                n1, n2 = len(ga_fe), len(sa_fe)
+                r = 1 - 2 * u_stat / (n1 * n2)
+            else:
+                u_p = r = float("nan")
+
+            print(f"  {inst_name}: GA mean={ga_mean:,.0f}  SA mean={sa_mean:,.0f}  "
+                  f"p={u_p:.6f}  r={r:.4f}")
+
+    return eff_df
+
+
 def run_analysis(results_dir: str = "results"):
-    """Run all analysis: load results, generate all 5 figures + statistical summary."""
+    """Run all analysis: load results, generate all 6 figures + statistical summary."""
     print("Loading results...")
     df, conv = load_results(results_dir)
 
@@ -355,6 +475,7 @@ def run_analysis(results_dir: str = "results"):
     plot_best_tours(df, conv, results_dir)
     plot_gap_barchart(df, results_dir)
     stats_df = statistical_analysis(df, results_dir)
+    convergence_efficiency(df, conv, results_dir)
 
     print(f"\nAll figures and analysis saved to {results_dir}/")
     return stats_df
