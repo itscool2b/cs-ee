@@ -7,6 +7,9 @@ __pycache__/
 # Numba cache
 __numba_cache__/
 
+# Quick test output
+results_quick/
+
 # IDE
 .vscode/
 .idea/
