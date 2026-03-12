@@ -7,10 +7,6 @@ __pycache__/
 # Numba cache
 __numba_cache__/
 
-# Results (regenerable by running main.py)
-results/
-results_quick/
-
 # IDE
 .vscode/
 .idea/
