@@ -28,7 +28,7 @@ python main.py          # Full experiment: 30 trials, full FE budgets → result
 python main.py --quick  # Test run: 1 trial, 10% FE budgets → results_quick/
 ```
 
-Full run takes ~75 minutes (hardware-dependent). Quick mode takes ~20 seconds.
+Full run takes ~30–75 minutes (hardware-dependent). Quick mode takes ~20 seconds.
 
 ## Instances
 

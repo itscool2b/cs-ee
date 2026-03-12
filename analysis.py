@@ -194,9 +194,14 @@ def plot_gap_barchart(df, results_dir: str = "results"):
         ga_errs.append(ga_gap.std())
         sa_errs.append(sa_gap.std())
 
-    bars1 = ax.bar(x - width / 2, ga_gaps, width, yerr=ga_errs,
+    # Clip lower error bars at zero (gap can't be negative)
+    ga_lo = [min(g, e) for g, e in zip(ga_gaps, ga_errs)]
+    sa_lo = [min(g, e) for g, e in zip(sa_gaps, sa_errs)]
+    bars1 = ax.bar(x - width / 2, ga_gaps, width,
+                   yerr=[ga_lo, ga_errs],
                    label="GA", color="#2196F3", alpha=0.8, capsize=4)
-    bars2 = ax.bar(x + width / 2, sa_gaps, width, yerr=sa_errs,
+    bars2 = ax.bar(x + width / 2, sa_gaps, width,
+                   yerr=[sa_lo, sa_errs],
                    label="SA", color="#FF5722", alpha=0.8, capsize=4)
 
     # Add value labels on bars
@@ -270,10 +275,10 @@ def statistical_analysis(df, results_dir: str = "results"):
               f"({'significant' if u_p < 0.05 else 'not significant'} at alpha=0.05)")
         print(f"  Effect size (rank-biserial r): {effect_size:.4f}")
 
-        for alg, costs, gaps in [("GA", ga_costs, ga_gaps), ("SA", sa_costs, sa_gaps)]:
+        for idx_alg, (alg, costs, gaps) in enumerate([("GA", ga_costs, ga_gaps), ("SA", sa_costs, sa_gaps)]):
             sw_stat = sw_ga_stat if alg == "GA" else sw_sa_stat
             sw_p = sw_ga_p if alg == "GA" else sw_sa_p
-            rows.append({
+            row = {
                 "Instance": inst_name,
                 "Algorithm": alg,
                 "n": len(costs),
@@ -284,10 +289,17 @@ def statistical_analysis(df, results_dir: str = "results"):
                 "Mean Gap (%)": f"{np.mean(gaps):.2f}",
                 "Shapiro-Wilk W": f"{sw_stat:.4f}",
                 "Shapiro-Wilk p": f"{sw_p:.4f}",
-                "Mann-Whitney U": f"{u_stat:.1f}",
-                "Mann-Whitney p": f"{u_p:.6f}",
-                "Effect Size r": f"{effect_size:.4f}",
-            })
+            }
+            # Only show pairwise test stats on the first row per instance
+            if idx_alg == 0:
+                row["Mann-Whitney U"] = f"{u_stat:.1f}"
+                row["Mann-Whitney p"] = f"{u_p:.6f}"
+                row["Effect Size r"] = f"{effect_size:.4f}"
+            else:
+                row["Mann-Whitney U"] = ""
+                row["Mann-Whitney p"] = ""
+                row["Effect Size r"] = ""
+            rows.append(row)
 
     stats_df = pd.DataFrame(rows)
     stats_df.to_csv(os.path.join(results_dir, "statistical_summary.csv"), index=False)
