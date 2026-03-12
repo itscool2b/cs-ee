@@ -6,17 +6,17 @@ from dataclasses import dataclass, asdict
 import numpy as np
 import pandas as pd
 
-from tsp import parse_tsplib
-from ga import run_ga
-from sa import run_sa
+from algorithms.tsp import parse_tsplib
+from algorithms.ga import run_ga
+from algorithms.sa import run_sa
 
 
 # Instance configurations: (filename, optimal_cost, fe_budget)
 INSTANCES = {
-    "berlin52": {"file": "berlin52.tsp", "optimal": 7542, "fe_budget": 500_000},
-    "pr76": {"file": "pr76.tsp", "optimal": 108159, "fe_budget": 750_000},
-    "kroA100": {"file": "kroA100.tsp", "optimal": 21282, "fe_budget": 1_000_000},
-    "d198": {"file": "d198.tsp", "optimal": 15780, "fe_budget": 2_000_000},
+    "berlin52": {"file": "datasets/berlin52.tsp", "optimal": 7542, "fe_budget": 500_000},
+    "pr76": {"file": "datasets/pr76.tsp", "optimal": 108159, "fe_budget": 750_000},
+    "kroA100": {"file": "datasets/kroA100.tsp", "optimal": 21282, "fe_budget": 1_000_000},
+    "d198": {"file": "datasets/d198.tsp", "optimal": 15780, "fe_budget": 2_000_000},
 }
 
 ALGORITHMS = {"GA": run_ga, "SA": run_sa}

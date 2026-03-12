@@ -5,7 +5,7 @@ import time
 import numpy as np
 from numba import njit
 
-from tsp import tour_cost
+from algorithms.tsp import tour_cost
 
 
 @njit(cache=True)

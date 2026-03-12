@@ -111,16 +111,19 @@ Applied to both solution quality (final costs) and convergence efficiency (FEs-t
 
 ```
 main.py           Entry point (--quick for testing)
-tsp.py            TSPLIB parser, distance matrix, tour cost
-ga.py             Genetic Algorithm
-sa.py             Simulated Annealing
 experiment.py     Trial runner, progress output, CSV/npz saving
 analysis.py       Statistical tests + 6 figures
+algorithms/       Algorithm implementations
+  tsp.py          TSPLIB parser, distance matrix, tour cost
+  ga.py           Genetic Algorithm
+  sa.py           Simulated Annealing
+datasets/         TSPLIB instance files
+  berlin52.tsp
+  pr76.tsp
+  kroA100.tsp
+  d198.tsp
+results/          Output (CSV, npz, PNG figures)
 shell.nix         Nix development environment
-berlin52.tsp      TSPLIB instance files
-pr76.tsp
-kroA100.tsp
-d198.tsp
 ```
 
 ## Dependencies

@@ -1,0 +1,9 @@
+Instance,Algorithm,n,Mean Cost,Std,Min,Max,Mean Gap (%),Shapiro-Wilk W,Shapiro-Wilk p,Mann-Whitney U,Mann-Whitney p,Effect Size r
+berlin52,GA,1,"8,292.0",0.0,"8,292","8,292",9.94,nan,nan,nan,nan,nan
+berlin52,SA,1,"8,554.0",0.0,"8,554","8,554",13.42,nan,nan,,,
+pr76,GA,1,"109,572.0",0.0,"109,572","109,572",1.31,nan,nan,nan,nan,nan
+pr76,SA,1,"109,261.0",0.0,"109,261","109,261",1.02,nan,nan,,,
+kroA100,GA,1,"24,275.0",0.0,"24,275","24,275",14.06,nan,nan,nan,nan,nan
+kroA100,SA,1,"22,040.0",0.0,"22,040","22,040",3.56,nan,nan,,,
+d198,GA,1,"17,476.0",0.0,"17,476","17,476",10.75,nan,nan,nan,nan,nan
+d198,SA,1,"16,678.0",0.0,"16,678","16,678",5.69,nan,nan,,,

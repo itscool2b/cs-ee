@@ -126,7 +126,7 @@ def plot_boxplots(df, results_dir: str = "results"):
 
 def plot_best_tours(df, conv, results_dir: str = "results", base_dir: str = "."):
     """Figure 3: Best tours (4x2 grid) showing city coordinates + tour edges."""
-    from tsp import parse_tsplib
+    from algorithms.tsp import parse_tsplib
 
     fig, axes = plt.subplots(4, 2, figsize=(14, 22))
     fig.suptitle("Best Tours Found: GA vs SA", fontsize=14, fontweight="bold")
