@@ -8,6 +8,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy import stats
+from scipy.spatial import Voronoi, Delaunay
+from matplotlib.collections import PolyCollection
+from matplotlib.colors import PowerNorm
 
 from experiment import INSTANCES, ALGORITHMS, RECORD_INTERVAL
 
@@ -473,8 +476,167 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
     return eff_df
 
 
+def _clip_polygon_to_bbox(polygon, bbox):
+    """Clip a polygon to a rectangular bounding box (Sutherland-Hodgman)."""
+    x_min, x_max, y_min, y_max = bbox
+
+    def _clip_edge(poly, inside_fn, intersect_fn):
+        if len(poly) == 0:
+            return poly
+        clipped = []
+        prev = poly[-1]
+        for curr in poly:
+            if inside_fn(curr):
+                if not inside_fn(prev):
+                    clipped.append(intersect_fn(prev, curr))
+                clipped.append(curr)
+            elif inside_fn(prev):
+                clipped.append(intersect_fn(prev, curr))
+            prev = curr
+        return np.array(clipped) if clipped else np.empty((0, 2))
+
+    def _lerp(a, b, t):
+        return a + t * (b - a)
+
+    poly = polygon
+    poly = _clip_edge(poly,
+                      lambda p: p[0] >= x_min,
+                      lambda a, b: _lerp(a, b, (x_min - a[0]) / (b[0] - a[0])))
+    poly = _clip_edge(poly,
+                      lambda p: p[0] <= x_max,
+                      lambda a, b: _lerp(a, b, (x_max - a[0]) / (b[0] - a[0])))
+    poly = _clip_edge(poly,
+                      lambda p: p[1] >= y_min,
+                      lambda a, b: _lerp(a, b, (y_min - a[1]) / (b[1] - a[1])))
+    poly = _clip_edge(poly,
+                      lambda p: p[1] <= y_max,
+                      lambda a, b: _lerp(a, b, (y_max - a[1]) / (b[1] - a[1])))
+    return poly
+
+
+def _voronoi_finite_polygons(vor, bbox):
+    """Convert scipy Voronoi to finite polygons clipped to bbox.
+
+    Returns list of (M, 2) arrays, one polygon per input point.
+    """
+    center = vor.points.mean(axis=0)
+    regions_out = []
+
+    for point_idx in range(len(vor.points)):
+        region_idx = vor.point_region[point_idx]
+        region = vor.regions[region_idx]
+
+        if not region:
+            regions_out.append(np.empty((0, 2)))
+            continue
+
+        if -1 not in region:
+            polygon = vor.vertices[region]
+            polygon = _clip_polygon_to_bbox(polygon, bbox)
+            regions_out.append(polygon)
+            continue
+
+        # Infinite region: collect finite vertices + extend infinite ridges
+        new_vertices = [vor.vertices[v] for v in region if v >= 0]
+
+        for ridge_idx, (p1, p2) in enumerate(vor.ridge_points):
+            if p1 != point_idx and p2 != point_idx:
+                continue
+            rv = vor.ridge_vertices[ridge_idx]
+            if -1 not in rv:
+                continue
+
+            v_finite = rv[0] if rv[1] == -1 else rv[1]
+            tangent = vor.points[p2] - vor.points[p1]
+            normal = np.array([-tangent[1], tangent[0]])
+            normal = normal / np.linalg.norm(normal)
+
+            midpoint = 0.5 * (vor.points[p1] + vor.points[p2])
+            if np.dot(normal, midpoint - center) < 0:
+                normal = -normal
+
+            extent = max(bbox[1] - bbox[0], bbox[3] - bbox[2]) * 2
+            far_point = vor.vertices[v_finite] + normal * extent
+            new_vertices.append(far_point)
+
+        vs = np.array(new_vertices)
+        c = vs.mean(axis=0)
+        angles = np.arctan2(vs[:, 1] - c[1], vs[:, 0] - c[0])
+        polygon = vs[np.argsort(angles)]
+        polygon = _clip_polygon_to_bbox(polygon, bbox)
+        regions_out.append(polygon)
+
+    return regions_out
+
+
+def plot_topology(results_dir: str = "results", base_dir: str = "."):
+    """Figure 7: Topological structure of TSP instances (Voronoi + Delaunay)."""
+    from algorithms.tsp import parse_tsplib
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle("Topological Structure of TSP Instances",
+                 fontsize=14, fontweight="bold")
+
+    for idx, (inst_name, inst_config) in enumerate(INSTANCES.items()):
+        ax = axes[idx // 2][idx % 2]
+        instance = parse_tsplib(os.path.join(base_dir, inst_config["file"]),
+                                inst_config["optimal"])
+        coords = instance.coords
+
+        # Bounding box with 5% padding
+        mins = coords.min(axis=0)
+        maxs = coords.max(axis=0)
+        pad = (maxs - mins) * 0.05
+        bbox = (mins[0] - pad[0], maxs[0] + pad[0],
+                mins[1] - pad[1], maxs[1] + pad[1])
+
+        # Compute Voronoi and Delaunay
+        vor = Voronoi(coords)
+        tri = Delaunay(coords)
+
+        # Get finite clipped polygons
+        polygons = _voronoi_finite_polygons(vor, bbox)
+
+        # Compute cell areas (shoelace formula) for coloring
+        areas = []
+        valid_polys = []
+        for poly in polygons:
+            if len(poly) >= 3:
+                x, y = poly[:, 0], poly[:, 1]
+                area = 0.5 * abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+                areas.append(area)
+                valid_polys.append(poly)
+        areas = np.array(areas)
+
+        # Colored Voronoi cells
+        norm = PowerNorm(gamma=0.5, vmin=areas[areas > 0].min(), vmax=areas.max())
+        pc = PolyCollection(valid_polys, array=areas, cmap="plasma", norm=norm,
+                            edgecolors="white", linewidths=0.5, alpha=0.85)
+        ax.add_collection(pc)
+
+        # Delaunay edges (subtle)
+        ax.triplot(coords[:, 0], coords[:, 1], tri.simplices,
+                   color="#333333", linewidth=0.3, alpha=0.25)
+
+        # City points
+        ax.scatter(coords[:, 0], coords[:, 1], s=12, c="black", zorder=5)
+
+        ax.set_xlim(bbox[0], bbox[1])
+        ax.set_ylim(bbox[2], bbox[3])
+        ax.set_aspect("equal")
+        ax.set_title(f"{inst_name} (n={instance.dimension}, optimal={inst_config['optimal']:,})")
+        ax.set_xlabel("x coordinate")
+        ax.set_ylabel("y coordinate")
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(results_dir, "fig7_topology.png"),
+                dpi=300, bbox_inches="tight")
+    plt.close()
+    print("Saved fig7_topology.png")
+
+
 def run_analysis(results_dir: str = "results"):
-    """Run all analysis: load results, generate all 6 figures + statistical summary."""
+    """Run all analysis: load results, generate all 7 figures + statistical summary."""
     print("Loading results...")
     df, conv = load_results(results_dir)
 
@@ -488,6 +650,7 @@ def run_analysis(results_dir: str = "results"):
     plot_gap_barchart(df, results_dir)
     stats_df = statistical_analysis(df, results_dir)
     convergence_efficiency(df, conv, results_dir)
+    plot_topology(results_dir)
 
     print(f"\nAll figures and analysis saved to {results_dir}/")
     return stats_df
