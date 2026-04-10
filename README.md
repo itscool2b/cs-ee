@@ -58,7 +58,7 @@ All use EUC_2D edge weights: `nint(sqrt(dx^2 + dy^2))` per TSPLIB spec. FE budge
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | Population | 100 | Balances diversity against evaluation cost per generation |
-| Selection | Tournament, k=5 | ~93% probability of selecting best from sample |
+| Selection | Tournament, k=5 | High selective pressure; expected selection from top ~17% of population |
 | Crossover | Order Crossover (OX), rate=0.9 | Preserves relative city ordering; standard for permutations |
 | Mutation | Inversion, rate=0.3 | Reverses a subsequence; preserves adjacency better than swap |
 | Elitism | 2 | Prevents loss of best solutions between generations |

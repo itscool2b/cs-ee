@@ -91,3 +91,25 @@ def tour_cost(dist_matrix, tour):
             j = 0
         cost += dist_matrix[tour[i], tour[j]]
     return cost
+
+
+def nearest_neighbor_cost(dist_matrix):
+    """Nearest-neighbor heuristic starting from city 0. Returns tour cost."""
+    n = len(dist_matrix)
+    visited = np.zeros(n, dtype=np.bool_)
+    tour = np.empty(n, dtype=np.int32)
+    tour[0] = 0
+    visited[0] = True
+
+    for step in range(1, n):
+        current = tour[step - 1]
+        best_dist = np.iinfo(np.int32).max
+        best_city = -1
+        for city in range(n):
+            if not visited[city] and dist_matrix[current, city] < best_dist:
+                best_dist = dist_matrix[current, city]
+                best_city = city
+        tour[step] = best_city
+        visited[best_city] = True
+
+    return tour_cost(dist_matrix, tour)

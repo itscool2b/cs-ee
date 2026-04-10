@@ -175,8 +175,10 @@ def plot_best_tours(df, conv, results_dir: str = "results", base_dir: str = ".")
     print("Saved fig3_best_tours.png")
 
 
-def plot_gap_barchart(df, results_dir: str = "results"):
-    """Figure 4: Mean % gap from optimal, grouped by instance."""
+def plot_gap_barchart(df, results_dir: str = "results", base_dir: str = "."):
+    """Figure 4: Mean % gap from optimal, grouped by instance, with NN baseline."""
+    from algorithms.tsp import parse_tsplib, nearest_neighbor_cost
+
     fig, ax = plt.subplots(figsize=(10, 6))
 
     instances = list(INSTANCES.keys())
@@ -187,6 +189,7 @@ def plot_gap_barchart(df, results_dir: str = "results"):
     sa_gaps = []
     ga_errs = []
     sa_errs = []
+    nn_gaps = []
 
     for inst_name in instances:
         inst_df = df[df["instance"] == inst_name]
@@ -197,6 +200,12 @@ def plot_gap_barchart(df, results_dir: str = "results"):
         ga_errs.append(ga_gap.std())
         sa_errs.append(sa_gap.std())
 
+        inst_config = INSTANCES[inst_name]
+        instance = parse_tsplib(os.path.join(base_dir, inst_config["file"]),
+                                inst_config["optimal"])
+        nn_cost = nearest_neighbor_cost(instance.dist_matrix)
+        nn_gaps.append((nn_cost - inst_config["optimal"]) / inst_config["optimal"] * 100)
+
     # Clip lower error bars at zero (gap can't be negative)
     ga_lo = [min(g, e) for g, e in zip(ga_gaps, ga_errs)]
     sa_lo = [min(g, e) for g, e in zip(sa_gaps, sa_errs)]
@@ -206,6 +215,13 @@ def plot_gap_barchart(df, results_dir: str = "results"):
     bars2 = ax.bar(x + width / 2, sa_gaps, width,
                    yerr=[sa_lo, sa_errs],
                    label="SA", color="#FF5722", alpha=0.8, capsize=4)
+
+    # NN baseline markers
+    for i, nn_gap in enumerate(nn_gaps):
+        ax.plot(x[i], nn_gap, marker='v', color='#4CAF50', markersize=10,
+                zorder=5, label="NN baseline" if i == 0 else None)
+        ax.text(x[i], nn_gap + 0.5, f"{nn_gap:.1f}%",
+                ha="center", va="bottom", fontsize=8, color="#4CAF50")
 
     # Add value labels on bars
     for bar, val in zip(bars1, ga_gaps):
@@ -233,9 +249,11 @@ def plot_gap_barchart(df, results_dir: str = "results"):
 def statistical_analysis(df, results_dir: str = "results"):
     """Perform statistical tests and create Figure 5 (summary table) + CSV."""
     rows = []
+    n_comparisons = len(INSTANCES)  # 4 tests → Bonferroni α = 0.05/4
+    alpha_corrected = 0.05 / n_comparisons
 
     print(f"\n{'='*80}")
-    print("STATISTICAL ANALYSIS")
+    print(f"STATISTICAL ANALYSIS (Bonferroni-corrected alpha={alpha_corrected})")
     print(f"{'='*80}")
 
     for inst_name in INSTANCES:
@@ -274,8 +292,11 @@ def statistical_analysis(df, results_dir: str = "results"):
               f"({'normal' if sw_ga_p > 0.05 else 'non-normal'})")
         print(f"  Shapiro-Wilk SA: W={sw_sa_stat:.4f}, p={sw_sa_p:.4f} "
               f"({'normal' if sw_sa_p > 0.05 else 'non-normal'})")
-        print(f"  Mann-Whitney U: U={u_stat:.1f}, p={u_p:.6f} "
-              f"({'significant' if u_p < 0.05 else 'not significant'} at alpha=0.05)")
+        p_corrected = min(u_p * n_comparisons, 1.0)
+        print(f"  Mann-Whitney U: U={u_stat:.1f}, p={u_p:.6f}, "
+              f"p_corrected={p_corrected:.6f} "
+              f"({'significant' if p_corrected < 0.05 else 'not significant'} "
+              f"at Bonferroni-corrected alpha={alpha_corrected})")
         print(f"  Effect size (rank-biserial r): {effect_size:.4f}")
 
         for idx_alg, (alg, costs, gaps) in enumerate([("GA", ga_costs, ga_gaps), ("SA", sa_costs, sa_gaps)]):
@@ -297,10 +318,12 @@ def statistical_analysis(df, results_dir: str = "results"):
             if idx_alg == 0:
                 row["Mann-Whitney U"] = f"{u_stat:.1f}"
                 row["Mann-Whitney p"] = f"{u_p:.6f}"
+                row["Corrected p"] = f"{p_corrected:.6f}"
                 row["Effect Size r"] = f"{effect_size:.4f}"
             else:
                 row["Mann-Whitney U"] = ""
                 row["Mann-Whitney p"] = ""
+                row["Corrected p"] = ""
                 row["Effect Size r"] = ""
             rows.append(row)
 
@@ -320,12 +343,13 @@ def statistical_analysis(df, results_dir: str = "results"):
         table_data.append([
             row["Instance"], row["Algorithm"], row["n"],
             row["Mean Cost"], row["Std"], row["Min"], row["Max"],
-            row["Mean Gap (%)"], row["Mann-Whitney p"], row["Effect Size r"],
+            row["Mean Gap (%)"], row["Mann-Whitney p"],
+            row["Corrected p"], row["Effect Size r"],
         ])
 
     col_labels = [
         "Instance", "Algorithm", "n", "Mean Cost", "Std",
-        "Min", "Max", "Gap (%)", "M-W p-value", "Effect r",
+        "Min", "Max", "Gap (%)", "M-W p", "Corrected p", "Effect r",
     ]
 
     table = ax.table(
@@ -448,8 +472,11 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
     print("Saved fig6_convergence_efficiency.png")
 
     # Statistical tests on convergence efficiency
+    # 4 instances × 3 thresholds = 12 comparisons
+    n_eff_comparisons = len(INSTANCES) * len(thresholds)
+    alpha_eff = 0.05 / n_eff_comparisons
     print(f"\n{'='*80}")
-    print("CONVERGENCE EFFICIENCY ANALYSIS")
+    print(f"CONVERGENCE EFFICIENCY ANALYSIS (Bonferroni-corrected alpha={alpha_eff:.4f})")
     print(f"{'='*80}")
 
     for thresh in thresholds:
@@ -467,11 +494,12 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
                 u_stat, u_p = stats.mannwhitneyu(ga_fe, sa_fe, alternative="two-sided")
                 n1, n2 = len(ga_fe), len(sa_fe)
                 r = 1 - 2 * u_stat / (n1 * n2)
+                p_corr = min(u_p * n_eff_comparisons, 1.0)
             else:
-                u_p = r = float("nan")
+                u_p = r = p_corr = float("nan")
 
             print(f"  {inst_name}: GA mean={ga_mean:,.0f}  SA mean={sa_mean:,.0f}  "
-                  f"p={u_p:.6f}  r={r:.4f}")
+                  f"p={u_p:.6f}  p_corrected={p_corr:.6f}  r={r:.4f}")
 
     return eff_df
 
