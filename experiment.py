@@ -102,8 +102,7 @@ def run_all_experiments(
 
                 print(
                     f"  [{trial_num}/{total_trials}] {alg_name} seed={seed:2d}: "
-                    f"cost={result['best_cost']:>8,}  gap={gap:6.2f}%  "
-                    f"time={result['wall_time']:.1f}s"
+                    f"cost={result['best_cost']:>8,}  gap={gap:6.2f}%"
                 )
 
             convergence_data[(inst_name, alg_name)] = conv_list

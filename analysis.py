@@ -106,7 +106,7 @@ def plot_boxplots(df, results_dir: str = "results"):
 
         bp = ax.boxplot(
             [ga_costs, sa_costs],
-            labels=["GA", "SA"],
+            tick_labels=["GA", "SA"],
             patch_artist=True,
             widths=0.5,
         )
@@ -247,7 +247,7 @@ def plot_gap_barchart(df, results_dir: str = "results", base_dir: str = "."):
 
 
 def statistical_analysis(df, results_dir: str = "results"):
-    """Perform statistical tests and create Figure 5 (summary table) + CSV."""
+    """Perform statistical tests and save summary CSV."""
     rows = []
     n_comparisons = len(INSTANCES)  # 4 tests → Bonferroni α = 0.05/4
     alpha_corrected = 0.05 / n_comparisons
@@ -618,7 +618,7 @@ def plot_topology(results_dir: str = "results", base_dir: str = "."):
 
 
 def run_analysis(results_dir: str = "results"):
-    """Run all analysis: load results, generate all 7 figures + statistical summary."""
+    """Run all analysis: load results, generate all 6 figures + statistical summary."""
     print("Loading results...")
     df, conv = load_results(results_dir)
 

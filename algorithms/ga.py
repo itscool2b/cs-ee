@@ -1,7 +1,5 @@
 """Genetic Algorithm for TSP with OX crossover, inversion mutation, and tournament selection."""
 
-import time
-
 import numpy as np
 from numba import njit
 
@@ -58,8 +56,6 @@ def run_ga(
     if rng is None:
         rng = np.random.default_rng()
 
-    start_time = time.perf_counter()
-
     # Initialize population
     population = np.array([rng.permutation(n_cities).astype(np.int32) for _ in range(pop_size)])
     fitness = np.array([tour_cost(dist_matrix, ind) for ind in population])
@@ -73,26 +69,29 @@ def run_ga(
     convergence_cost = [best_cost]
     next_record = record_interval
 
+    new_population = np.empty((pop_size, n_cities), dtype=np.int32)
+    new_fitness = np.empty(pop_size, dtype=fitness.dtype)
+
     while fe_count < max_fe:
-        new_population = []
-        new_fitness = []
+        count = 0
 
         # Elitism
         elite_indices = np.argsort(fitness)[:elite_count]
         for idx in elite_indices:
-            new_population.append(population[idx].copy())
-            new_fitness.append(fitness[idx])
+            new_population[count] = population[idx]
+            new_fitness[count] = fitness[idx]
+            count += 1
 
         # Generate offspring
-        while len(new_population) < pop_size:
+        while count < pop_size:
             if fe_count >= max_fe:
                 break
 
             # Tournament selection
             idx1 = rng.choice(len(population), size=tournament_k, replace=False)
-            p1 = population[idx1[np.argmin(fitness[idx1])]].copy()
+            p1 = population[idx1[np.argmin(fitness[idx1])]]
             idx2 = rng.choice(len(population), size=tournament_k, replace=False)
-            p2 = population[idx2[np.argmin(fitness[idx2])]].copy()
+            p2 = population[idx2[np.argmin(fitness[idx2])]]
 
             # Crossover
             if rng.random() < crossover_rate:
@@ -109,8 +108,9 @@ def run_ga(
             child_cost = tour_cost(dist_matrix, child)
             fe_count += 1
 
-            new_population.append(child)
-            new_fitness.append(child_cost)
+            new_population[count] = child
+            new_fitness[count] = child_cost
+            count += 1
 
             if child_cost < best_cost:
                 best_cost = child_cost
@@ -121,19 +121,18 @@ def run_ga(
                 convergence_cost.append(best_cost)
                 next_record += record_interval
 
-        population = np.array(new_population[:pop_size])
-        fitness = np.array(new_fitness[:pop_size])
+        if count == pop_size:
+            population, new_population = new_population, population
+            fitness, new_fitness = new_fitness, fitness
+        # else: partial fill (fe_count hit max_fe); outer loop will exit
 
     if convergence_fe[-1] != fe_count:
         convergence_fe.append(fe_count)
         convergence_cost.append(best_cost)
-
-    wall_time = time.perf_counter() - start_time
 
     return {
         "best_cost": best_cost,
         "best_tour": best_tour,
         "convergence_fe": np.array(convergence_fe),
         "convergence_cost": np.array(convergence_cost),
-        "wall_time": wall_time,
     }

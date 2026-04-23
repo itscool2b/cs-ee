@@ -1,7 +1,5 @@
 """Simulated Annealing for TSP with 2-opt neighborhood and auto-calibrated temperature."""
 
-import time
-
 import numpy as np
 from numba import njit
 
@@ -96,12 +94,7 @@ def _calibrate_temperature(dist_matrix, tour, rng, target_accept=0.8, n_samples=
     deltas = []
     attempts = 0
     while len(deltas) < n_samples and attempts < n_samples * 20:
-        i = rng.integers(1, n)
-        j = rng.integers(i + 1, n + (1 if i > 1 else 0))
-        if j >= n:
-            j = n - 1
-        if i >= j:
-            continue
+        i, j = sorted(rng.choice(n - 1, size=2, replace=False) + 1)
         a, b = tour[i - 1], tour[i]
         c, d = tour[j], tour[(j + 1) % n]
         delta = int((dist_matrix[a, c] + dist_matrix[b, d]) - (dist_matrix[a, b] + dist_matrix[c, d]))
@@ -128,8 +121,6 @@ def run_sa(dist_matrix, n_cities, max_fe, record_interval=1000, rng=None, coolin
     """Run Simulated Annealing on TSP."""
     if rng is None:
         rng = np.random.default_rng()
-
-    start_time = time.perf_counter()
 
     # Random initial tour
     tour = np.arange(n_cities, dtype=np.int32)
@@ -159,12 +150,9 @@ def run_sa(dist_matrix, n_cities, max_fe, record_interval=1000, rng=None, coolin
         record_interval, rand_vals, rand_ij,
     )
 
-    wall_time = time.perf_counter() - start_time
-
     return {
         "best_cost": int(best_cost),
         "best_tour": best_tour,
         "convergence_fe": conv_fe,
         "convergence_cost": conv_cost,
-        "wall_time": wall_time,
     }
