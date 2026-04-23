@@ -89,7 +89,7 @@ Temperature calibration samples are not counted as FEs.
 2. **fig2 Box plots** — Final tour cost distributions per instance
 3. **fig3 Best tours** — City coordinates with tour edges for the best solution found
 4. **fig4 Gap bar chart** — Mean % gap from optimal with std error bars, plus multi-start nearest-neighbor baseline (green marker)
-5. **fig6 Convergence efficiency** — Box plots of FEs needed to reach 15%, 10%, 5% gap thresholds
+5. **fig6 Convergence efficiency** — Box plots of FEs needed to reach 15%, 10%, 5% gap thresholds. Reach counts (`R/T`) annotated below each box: trials that never cross the threshold are right-censored at the FE budget, so a low reach count means the box position reflects the budget cap rather than actual convergence speed.
 6. **fig7 Topology** — Voronoi + Delaunay diagram per instance, colored by cell area (visual sense of spatial layout and density)
 
 Files are named with a gap at `fig5` because the old `fig5_summary_table.png` was a rendered PNG of a stats table, redundant with `statistical_summary.csv`. Removed to avoid low-resolution table images in the EE writeup; the CSV is the canonical source.

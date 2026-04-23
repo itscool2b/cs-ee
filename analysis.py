@@ -51,7 +51,7 @@ def _interpolate_convergence(fe_arrays, cost_arrays, max_fe: int):
 
 
 def plot_convergence(df, conv, results_dir: str = "results"):
-    """Figure 1: Convergence curves (2x2 grid) with mean +/- std shading."""
+    """Figure 1: Convergence curves (2x2 grid) with median + IQR shading."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     fig.suptitle("Convergence Curves (median, IQR band): GA vs SA", fontsize=14, fontweight="bold")
 
@@ -159,7 +159,7 @@ def plot_best_tours(df, conv, results_dir: str = "results", base_dir: str = ".")
                     [coords[c1, 0], coords[c2, 0]],
                     [coords[c1, 1], coords[c2, 1]],
                     color="#2196F3" if alg_name == "GA" else "#FF5722",
-                    linewidth=0.5, alpha=0.7,
+                    linewidth=1.0, alpha=0.7,
                 )
 
             # Plot cities
@@ -337,13 +337,15 @@ def statistical_analysis(df, results_dir: str = "results"):
 def _fe_to_threshold(fe_array, cost_array, optimal, gap_pct):
     """Find the first FE count where cost is within gap_pct% of optimal.
 
-    Returns max FE if threshold is never reached.
+    Returns (fe, reached): fe is the crossing point if reached, otherwise the
+    final FE (budget cap) as a right-censored upper bound. reached is True
+    only when the threshold was actually crossed.
     """
     target = optimal * (1 + gap_pct / 100.0)
     indices = np.where(cost_array <= target)[0]
     if len(indices) > 0:
-        return int(fe_array[indices[0]])
-    return int(fe_array[-1])  # never reached — use budget as upper bound
+        return int(fe_array[indices[0]]), True
+    return int(fe_array[-1]), False
 
 
 def convergence_efficiency(df, conv, results_dir: str = "results"):
@@ -362,13 +364,14 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
             fe_arrays, cost_arrays = _get_convergence_arrays(conv, inst_name, alg_name, n_trials)
             for i, (fe, cost) in enumerate(zip(fe_arrays, cost_arrays)):
                 for thresh in thresholds:
-                    fe_val = _fe_to_threshold(fe, cost, optimal, thresh)
+                    fe_val, reached = _fe_to_threshold(fe, cost, optimal, thresh)
                     eff_rows.append({
                         "instance": inst_name,
                         "algorithm": alg_name,
                         "seed": i,
                         "threshold_pct": thresh,
                         "fe_to_threshold": fe_val,
+                        "reached": reached,
                     })
 
     eff_df = pd.DataFrame(eff_rows)
@@ -391,13 +394,17 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
 
         ga_data = []
         sa_data = []
+        ga_reach = []
+        sa_reach = []
         for inst_name in instances:
-            ga_vals = thresh_df[(thresh_df["instance"] == inst_name) &
-                                (thresh_df["algorithm"] == "GA")]["fe_to_threshold"].values
-            sa_vals = thresh_df[(thresh_df["instance"] == inst_name) &
-                                (thresh_df["algorithm"] == "SA")]["fe_to_threshold"].values
-            ga_data.append(ga_vals)
-            sa_data.append(sa_vals)
+            ga_rows = thresh_df[(thresh_df["instance"] == inst_name) &
+                                (thresh_df["algorithm"] == "GA")]
+            sa_rows = thresh_df[(thresh_df["instance"] == inst_name) &
+                                (thresh_df["algorithm"] == "SA")]
+            ga_data.append(ga_rows["fe_to_threshold"].values)
+            sa_data.append(sa_rows["fe_to_threshold"].values)
+            ga_reach.append(int(ga_rows["reached"].sum()))
+            sa_reach.append(int(sa_rows["reached"].sum()))
 
         bp_ga = ax.boxplot([d for d in ga_data], positions=x - width / 2,
                            widths=width * 0.8, patch_artist=True)
@@ -415,6 +422,17 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
         ax.set_title(f"FEs to reach {thresh}% gap")
         ax.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
         ax.grid(True, alpha=0.3, axis="y")
+
+        # Reach counts below each box: trials that actually crossed the
+        # threshold vs total. Values below n_trials mean the FE figure is
+        # right-censored at the budget.
+        for i in range(len(instances)):
+            ax.text(x[i] - width / 2, -0.10, f"{ga_reach[i]}/{n_trials}",
+                    ha="center", va="top", fontsize=7, color="#1565C0",
+                    transform=ax.get_xaxis_transform())
+            ax.text(x[i] + width / 2, -0.10, f"{sa_reach[i]}/{n_trials}",
+                    ha="center", va="top", fontsize=7, color="#BF360C",
+                    transform=ax.get_xaxis_transform())
 
         ax.legend(handles=[Patch(facecolor="#BBDEFB", label="GA"),
                            Patch(facecolor="#FFCCBC", label="SA")], fontsize=9)
@@ -438,8 +456,12 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
         for inst_name in INSTANCES:
             thresh_df = eff_df[(eff_df["threshold_pct"] == thresh) &
                                (eff_df["instance"] == inst_name)]
-            ga_fe = thresh_df[thresh_df["algorithm"] == "GA"]["fe_to_threshold"].values
-            sa_fe = thresh_df[thresh_df["algorithm"] == "SA"]["fe_to_threshold"].values
+            ga_rows = thresh_df[thresh_df["algorithm"] == "GA"]
+            sa_rows = thresh_df[thresh_df["algorithm"] == "SA"]
+            ga_fe = ga_rows["fe_to_threshold"].values
+            sa_fe = sa_rows["fe_to_threshold"].values
+            ga_r = int(ga_rows["reached"].sum())
+            sa_r = int(sa_rows["reached"].sum())
 
             ga_mean = np.mean(ga_fe)
             sa_mean = np.mean(sa_fe)
@@ -452,7 +474,9 @@ def convergence_efficiency(df, conv, results_dir: str = "results"):
             else:
                 u_p = r = p_corr = float("nan")
 
-            print(f"  {inst_name}: GA mean={ga_mean:,.0f}  SA mean={sa_mean:,.0f}  "
+            print(f"  {inst_name}: "
+                  f"GA {ga_r}/{n_trials} reached (mean={ga_mean:,.0f})  "
+                  f"SA {sa_r}/{n_trials} reached (mean={sa_mean:,.0f})  "
                   f"p={u_p:.6f}  p_corrected={p_corr:.6f}  r={r:.4f}")
 
     return eff_df
