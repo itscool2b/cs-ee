@@ -8,13 +8,6 @@ IB Computer Science Extended Essay experiment comparing Genetic Algorithm and Si
 
 Requires Python 3.10+ with numpy, scipy, matplotlib, pandas, and numba.
 
-**NixOS** (recommended — handles all dependencies):
-```bash
-nix-shell
-python main.py
-```
-
-**pip/venv:**
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install numpy scipy matplotlib pandas numba
@@ -92,17 +85,20 @@ Temperature calibration samples are not counted as FEs.
 
 ### Figures (300 DPI PNGs)
 
-1. **Convergence curves** — Mean +/- std shading per instance, GA vs SA
-2. **Box plots** — Final tour cost distributions per instance
-3. **Best tours** — City coordinates with tour edges for the best solution found
-4. **Gap bar chart** — Mean % gap from optimal with std error bars
-5. **Summary table** — All key statistics rendered as an image
-6. **Convergence efficiency** — Box plots of FEs needed to reach 15%, 10%, 5% gap thresholds
+1. **fig1 Convergence curves** — Median with IQR (25th to 75th percentile) shading per instance, GA vs SA. Median + IQR matches the non-parametric framework; Shapiro-Wilk shows the data is non-normal, so Gaussian error bars would be misleading.
+2. **fig2 Box plots** — Final tour cost distributions per instance
+3. **fig3 Best tours** — City coordinates with tour edges for the best solution found
+4. **fig4 Gap bar chart** — Mean % gap from optimal with std error bars, plus multi-start nearest-neighbor baseline (green marker)
+5. **fig6 Convergence efficiency** — Box plots of FEs needed to reach 15%, 10%, 5% gap thresholds
+6. **fig7 Topology** — Voronoi + Delaunay diagram per instance, colored by cell area (visual sense of spatial layout and density)
+
+Files are named with a gap at `fig5` because the old `fig5_summary_table.png` was a rendered PNG of a stats table, redundant with `statistical_summary.csv`. Removed to avoid low-resolution table images in the EE writeup; the CSV is the canonical source.
 
 ### Statistical tests
 
-- **Shapiro-Wilk:** Tests normality to justify nonparametric approach
-- **Mann-Whitney U:** Nonparametric two-sided test at alpha = 0.05
+- **Shapiro-Wilk:** Tests normality, which justifies the nonparametric approach below
+- **Mann-Whitney U:** Nonparametric two-sided test at α = 0.05
+- **Bonferroni correction:** α/4 = 0.0125 for quality comparisons (4 instances), α/12 ≈ 0.0042 for convergence-efficiency comparisons (4 instances × 3 gap thresholds)
 - **Effect size:** Rank-biserial r = 1 - 2U/(n1 * n2)
 
 Applied to both solution quality (final costs) and convergence efficiency (FEs-to-threshold).
@@ -123,7 +119,6 @@ datasets/         TSPLIB instance files
   kroA100.tsp
   d198.tsp
 results/          Output (CSV, npz, PNG figures)
-shell.nix         Nix development environment
 ```
 
 ## Dependencies

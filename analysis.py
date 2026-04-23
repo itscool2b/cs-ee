@@ -53,7 +53,7 @@ def _interpolate_convergence(fe_arrays, cost_arrays, max_fe: int):
 def plot_convergence(df, conv, results_dir: str = "results"):
     """Figure 1: Convergence curves (2x2 grid) with mean +/- std shading."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    fig.suptitle("Convergence Curves: GA vs SA", fontsize=14, fontweight="bold")
+    fig.suptitle("Convergence Curves (median, IQR band): GA vs SA", fontsize=14, fontweight="bold")
 
     n_trials = df.groupby(["instance", "algorithm"]).size().iloc[0]
 
@@ -71,11 +71,11 @@ def plot_convergence(df, conv, results_dir: str = "results"):
                 continue
 
             common_fe, interpolated = _interpolate_convergence(fe_arrays, cost_arrays, max_fe)
-            mean = np.mean(interpolated, axis=0)
-            std = np.std(interpolated, axis=0)
+            median = np.median(interpolated, axis=0)
+            q25, q75 = np.percentile(interpolated, [25, 75], axis=0)
 
-            ax.plot(common_fe, mean, label=alg_name, color=color, linewidth=1.5)
-            ax.fill_between(common_fe, mean - std, mean + std, alpha=0.2, color=color)
+            ax.plot(common_fe, median, label=alg_name, color=color, linewidth=1.5)
+            ax.fill_between(common_fe, q25, q75, alpha=0.2, color=color)
 
         ax.axhline(y=inst_config["optimal"], color="green", linestyle="--",
                    linewidth=1, alpha=0.7, label=f"Optimal ({inst_config['optimal']:,})")
@@ -330,52 +330,6 @@ def statistical_analysis(df, results_dir: str = "results"):
     stats_df = pd.DataFrame(rows)
     stats_df.to_csv(os.path.join(results_dir, "statistical_summary.csv"), index=False)
     print(f"\nStatistical summary saved to {results_dir}/statistical_summary.csv")
-
-    # Figure 5: Summary table as image
-    fig, ax = plt.subplots(figsize=(16, 4 + len(rows) * 0.4))
-    ax.axis("off")
-    ax.set_title("Statistical Summary: GA vs SA on TSP",
-                 fontsize=14, fontweight="bold", pad=20)
-
-    # Simplified table for the figure
-    table_data = []
-    for _, row in stats_df.iterrows():
-        table_data.append([
-            row["Instance"], row["Algorithm"], row["n"],
-            row["Mean Cost"], row["Std"], row["Min"], row["Max"],
-            row["Mean Gap (%)"], row["Mann-Whitney p"],
-            row["Corrected p"], row["Effect Size r"],
-        ])
-
-    col_labels = [
-        "Instance", "Algorithm", "n", "Mean Cost", "Std",
-        "Min", "Max", "Gap (%)", "M-W p", "Corrected p", "Effect r",
-    ]
-
-    table = ax.table(
-        cellText=table_data,
-        colLabels=col_labels,
-        loc="center",
-        cellLoc="center",
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1.0, 1.5)
-
-    # Style header
-    for j in range(len(col_labels)):
-        table[(0, j)].set_facecolor("#E3F2FD")
-        table[(0, j)].set_text_props(fontweight="bold")
-
-    # Alternate row colors
-    for i in range(1, len(table_data) + 1):
-        color = "#FFFFFF" if i % 2 == 1 else "#F5F5F5"
-        for j in range(len(col_labels)):
-            table[(i, j)].set_facecolor(color)
-
-    plt.savefig(os.path.join(results_dir, "fig5_summary_table.png"), dpi=300, bbox_inches="tight")
-    plt.close()
-    print("Saved fig5_summary_table.png")
 
     return stats_df
 

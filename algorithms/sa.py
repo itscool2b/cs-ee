@@ -39,13 +39,7 @@ def _sa_inner_loop(dist_matrix, tour, current_cost, T, cooling_rate, max_fe,
         if idx >= len(rand_ij):
             idx = 0
 
-        # Ensure valid i < j with i >= 1
-        if i >= j:
-            i, j = 1, n - 1
-        if i < 1:
-            i = 1
-        if j >= n:
-            j = n - 1
+        # Invariant: 1 <= i < j <= n-1, enforced by run_sa's rand_ij pre-generation.
 
         # O(1) 2-opt delta
         a, b = tour[i - 1], tour[i]

@@ -31,7 +31,6 @@ class TrialResult:
     best_cost: int
     optimal: int
     gap_pct: float
-    wall_time: float
 
 
 def run_all_experiments(
@@ -92,7 +91,6 @@ def run_all_experiments(
                     best_cost=result["best_cost"],
                     optimal=inst_config["optimal"],
                     gap_pct=round(gap, 4),
-                    wall_time=round(result["wall_time"], 3),
                 )
                 all_results.append(trial)
 
